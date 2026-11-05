@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>드로이얀M 정식 오픈 카운트다운</title>
+<style>
+  /* 숫자 전용 폰트 (Noto Sans KR Medium, 0-9만 서브셋 / OFL) */
+  @font-face {
+    font-family: "DroDigits";
+    font-weight: 500;
+    font-display: block;
+    src: url(data:font/woff2;base64,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) format("woff2");
+  }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    overflow: hidden; background: #02060d;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+  }
+  /* 화면 크기에 맞춰 1300x680 비율 그대로 축소/확대 */
+  #wrap {
+    position: absolute; left: 50%; top: 50%;
+    width: 1300px; height: 680px;
+    margin: -340px 0 0 -650px;
+    transform-origin: 50% 50%;
+  }
+  #stage {
+    position: relative; width: 1300px; height: 680px;
+    background: url("img/bg.jpg") no-repeat 0 0 / 1300px 680px;
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+  }
+  /* PSD 텍스트 레이어: 60px / 자간 -25 / #96F4FF / 가운데 정렬
+     기준점 x=767, 932, 1096 · 베이스라인 y≈351 */
+  .num {
+    position: absolute; top: 295px;
+    width: 120px; margin-left: -60px;
+    font: 500 60px/60px "DroDigits", "Noto Sans KR", "Malgun Gothic", sans-serif;
+    letter-spacing: -0.025em;
+    color: #96f4ff;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  #hh { left: 767px; }
+  /* 시간이 4자리 이상이면 박스(약 126px) 안에 들어오도록 축소 */
+  #hh.d4 { font-size: 48px; }
+  #hh.d5 { font-size: 39px; }
+  #mm { left: 932px; }
+  #ss { left: 1096px; }
+  /* 자세히 보기 버튼 클릭 영역 (754,524 ~ 1118,598) */
+  #btn {
+    position: absolute; left: 754px; top: 524px;
+    width: 364px; height: 74px;
+    border-radius: 12px;
+    transition: box-shadow .2s, background-color .2s;
+  }
+  #btn:hover { background-color: rgba(150, 244, 255, .08); box-shadow: 0 0 24px rgba(120, 200, 255, .45); }
+  #btn:active { background-color: rgba(150, 244, 255, .16); }
+  .blind { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <h1 class="blind">드로이얀M 정식 오픈 준비 중 - 정식 오픈까지 남은 시간</h1>
+    <div class="num" id="hh" aria-label="시간">000</div>
+    <div class="num" id="mm" aria-label="분">00</div>
+    <div class="num" id="ss" aria-label="초">00</div>
+    <a id="btn" href="#" target="_blank" rel="noopener"><span class="blind">자세히 보기</span></a>
+  </div>
+</div>
+
+<script>
+  /* ===================== 설정 (여기만 수정) ===================== */
+  var CONFIG = {
+    // 정식 오픈 일시 (한국시간 KST, +09:00 고정)
+    OPEN_AT: "2027-01-19T11:00:00+09:00",
+    // '자세히 보기' 버튼 링크
+    DETAIL_URL: "https://cafe.naver.com/droiyanmofficial",
+    // 서버 시간 기준으로 맞추려면 서버가 내려준 현재시각(ms)을 넣으세요. null이면 기기 시각 사용
+    SERVER_NOW_MS: null
+  };
+  /* ============================================================ */
+
+  (function () {
+    var target = new Date(CONFIG.OPEN_AT).getTime();
+    var offset = CONFIG.SERVER_NOW_MS ? CONFIG.SERVER_NOW_MS - Date.now() : 0;
+    var elH = document.getElementById("hh");
+    var elM = document.getElementById("mm");
+    var elS = document.getElementById("ss");
+    var btn = document.getElementById("btn");
+    btn.href = CONFIG.DETAIL_URL;
+
+    function pad(n, len) { n = String(n); while (n.length < len) n = "0" + n; return n; }
+
+    var timer;
+    function tick() {
+      var left = Math.max(0, Math.floor((target - (Date.now() + offset)) / 1000));
+      var h = Math.floor(left / 3600);        // 일(day) 단위 없이 전체 시간으로 표기 (예: 123)
+      var m = Math.floor((left % 3600) / 60);
+      var s = left % 60;
+      var hs = pad(h, 2);
+      elH.textContent = hs;
+      elH.className = "num" + (hs.length >= 5 ? " d5" : hs.length === 4 ? " d4" : "");
+      elM.textContent = pad(m, 2);
+      elS.textContent = pad(s, 2);
+      if (left <= 0) { clearTimeout(timer); return; }   // 종료 시 00:00:00 고정
+      timer = setTimeout(tick, 1000 - ((Date.now() + offset) % 1000) + 5);
+    }
+    tick();
+    // 앱이 백그라운드에서 돌아왔을 때 즉시 갱신
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) { clearTimeout(timer); tick(); }
+    });
+
+    // 화면 맞춤 스케일 (비율 유지, 레터박스)
+    var wrap = document.getElementById("wrap");
+    function fit() {
+      var w = window.innerWidth, h = window.innerHeight;
+      var k = Math.min(w / 1300, h / 680);
+      wrap.style.transform = "scale(" + k + ")";
+      wrap.style.webkitTransform = "scale(" + k + ")";
+    }
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", function () { setTimeout(fit, 200); });
+  })();
+</script>
+</body>
+</html>
