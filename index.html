@@ -27,7 +27,7 @@
   }
   #stage {
     position: relative; width: 1300px; height: 680px;
-    background: url("img/bg.jpg") no-repeat 0 0 / 1300px 680px;
+    background: url("img/bg_off.jpg") no-repeat 0 0 / 1300px 680px;
     overflow: hidden;
     user-select: none; -webkit-user-select: none;
   }
@@ -43,6 +43,31 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  /* 로봇 눈 점등 + 배경 스모그 (하단 스크립트의 EYE 타임라인 하나로 동기화)
+     #smog      : 배경(어두운 영역)에만 깔리는 푸른 스모그. smog_mask.png로 밝은 기체/UI는 가림
+     #eye       : 눈빛이 약하게 남은 배경(bg_off.jpg) 위에 켜진 눈(eye_on.webp)을 겹침
+     #eyeBoost  : 최대 점등 시 더해지는 블룸(eye_boost.jpg)
+     #glintH/D  : 점등 순간 눈에서 뻗어나가는 광선 (가로 + 사선)
+     #glintStar : 점등 순간 번쩍이는 별 모양 반짝임 */
+  #smog {
+    position: absolute; left: 0; top: 0; width: 1300px; height: 680px;
+    mix-blend-mode: screen; pointer-events: none;
+  }
+  #eye, #eyeBoost {
+    position: absolute; left: 0; top: 117px; width: 990px; height: 360px;
+    opacity: 0; will-change: opacity; pointer-events: none;
+  }
+  #eye { background: url("img/eye_on.webp") no-repeat 0 0 / 990px 360px; }
+  #eyeBoost { background: url("img/eye_boost.jpg") no-repeat 0 0 / 990px 360px; mix-blend-mode: screen; }
+  .glint {
+    position: absolute; left: 0; top: 0; opacity: 0;
+    mix-blend-mode: screen; pointer-events: none; will-change: transform, opacity;
+  }
+  /* 광선 길이 760px: 최대로 뻗어도 카운트다운 박스(x=705~) 앞에서 사라지도록 */
+  #glintH, #glintD { width: 760px; height: 72px; margin: -36px 0 0 -380px;
+    background: url("img/glint_line.jpg") no-repeat 0 0 / 760px 72px; }
+  #glintStar { width: 320px; height: 320px; margin: -160px 0 0 -160px;
+    background: url("img/glint_star.jpg") no-repeat 0 0 / 320px 320px; }
   #hh { left: 767px; }
   /* 시간이 4자리 이상이면 박스(약 126px) 안에 들어오도록 축소 */
   #hh.d4 { font-size: 48px; }
@@ -65,6 +90,12 @@
 <div id="wrap">
   <div id="stage">
     <h1 class="blind">드로이얀M 정식 오픈 준비 중 - 정식 오픈까지 남은 시간</h1>
+    <canvas id="smog" width="650" height="340" aria-hidden="true"></canvas>
+    <div id="eye" aria-hidden="true"></div>
+    <div id="eyeBoost" aria-hidden="true"></div>
+    <div class="glint" id="glintD" aria-hidden="true"></div>
+    <div class="glint" id="glintH" aria-hidden="true"></div>
+    <div class="glint" id="glintStar" aria-hidden="true"></div>
     <div class="num" id="hh" aria-label="시간">000</div>
     <div class="num" id="mm" aria-label="분">00</div>
     <div class="num" id="ss" aria-label="초">00</div>
@@ -126,6 +157,155 @@
     fit();
     window.addEventListener("resize", fit);
     window.addEventListener("orientationchange", function () { setTimeout(fit, 200); });
+  })();
+
+  /* ===================== 눈 점등 + 배경 스모그 ===================== */
+  (function () {
+    var EYE = {
+      CYCLE: 10,        // 한 주기(초)
+      RISE_END: 1.8,    // 0 ~ 1.8초 : 천천히 점등
+      HOLD_END: 6.8,    // ~ 6.8초  : 최대 밝기(원본 시안 수준) 유지 (5초)
+      FALL_END: 8.2,    // ~ 8.2초  : 천천히 소등 → 10초까지 약한 잔광 상태
+      BOOST: 0,         // 원본보다 강한 블룸 (0 = 끔, 1 = 켬)
+      GLINT: 0,         // 점등 순간 광선/반짝임 (0 = 끔, 1 = 켬)
+      FLASH_AT: 1.45,   // 광선이 뻗어나가기 시작하는 시점
+      CX: 357, CY: 297, // 눈 중심 (1300x680 기준)
+      DIAG_DEG: -13     // 사선 광선 각도
+    };
+    var SMOG = {
+      COUNT: 16,        // 배경 연기 덩어리 개수
+      ALPHA: 0.3,       // 연기 진하기
+      COLOR: "#7d9bd0", // 연기 색
+      SPEED: 12         // 흐르는 속도(px/초, 오른쪽 → 왼쪽)
+    };
+
+    var eye = document.getElementById("eye");
+    var boost = document.getElementById("eyeBoost");
+    var gH = document.getElementById("glintH");
+    var gD = document.getElementById("glintD");
+    var gS = document.getElementById("glintStar");
+    var cv = document.getElementById("smog");
+    var ctx = cv.getContext && cv.getContext("2d");
+
+    function clamp(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+    function smooth(t) { t = clamp(t); return t * t * (3 - 2 * t); }
+    function outCubic(t) { t = clamp(t); return 1 - Math.pow(1 - t, 3); }
+    function seg(t, a, b) { return clamp((t - a) / (b - a)); }
+
+    function level(t) { // 눈 밝기 0~1
+      if (t < EYE.RISE_END) return smooth(t / EYE.RISE_END);
+      if (t < EYE.HOLD_END) return 1;
+      if (t < EYE.FALL_END) return 1 - smooth(seg(t, EYE.HOLD_END, EYE.FALL_END));
+      return 0;
+    }
+    function boostLevel(t) {
+      if (t < EYE.FLASH_AT) return 0.35 * smooth(t / EYE.FLASH_AT);
+      if (t < EYE.RISE_END) return 0.35 + 0.65 * outCubic(seg(t, EYE.FLASH_AT, EYE.FLASH_AT + 0.25));
+      if (t < EYE.HOLD_END) return 1;
+      return 1 - outCubic(seg(t, EYE.HOLD_END, EYE.HOLD_END + 1.0));
+    }
+    // 광선: 번쩍 뻗어나감(0.3초) → 살짝 수축하며 안정 → 유지(은은한 일렁임) → 소등과 함께 사라짐
+    function glint(t) {
+      var f = EYE.FLASH_AT, a = 0, sx = 0.05, star = 0;
+      if (t >= f && t < f + 0.3) {
+        var u = outCubic(seg(t, f, f + 0.3));
+        a = u; sx = 0.05 + 1.15 * u; star = 1.35 * u;
+      } else if (t >= f + 0.3 && t < f + 0.85) {
+        var v = smooth(seg(t, f + 0.3, f + 0.85));
+        a = 1 - 0.3 * v; sx = 1.2 - 0.2 * v; star = 1.35 - 0.5 * v;
+      } else if (t >= f + 0.85 && t < EYE.HOLD_END) {
+        var w = Math.sin((t - f) * 3.1);
+        a = 0.7 + 0.08 * w; sx = 1 + 0.03 * w; star = 0.85 + 0.06 * w;
+      } else if (t >= EYE.HOLD_END && t < EYE.FALL_END) {
+        var z = smooth(seg(t, EYE.HOLD_END, EYE.HOLD_END + 1.1));
+        a = 0.7 * (1 - z); sx = 1 - 0.45 * z; star = 0.85 * (1 - 0.6 * z);
+      }
+      return { a: a, sx: sx, star: star };
+    }
+    function place(el, sx, sy, deg, op) {
+      var tf = "translate(" + EYE.CX + "px," + EYE.CY + "px) rotate(" + deg + "deg) scale(" + sx + "," + sy + ")";
+      el.style.webkitTransform = tf; el.style.transform = tf;
+      el.style.opacity = op.toFixed(3);
+    }
+
+    if (!EYE.BOOST) boost.style.display = "none";
+    if (!EYE.GLINT) { gH.style.display = gD.style.display = gS.style.display = "none"; }
+
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      eye.style.opacity = 1; boost.style.opacity = 1;
+      place(gH, 1, 1, 0, 0.7); place(gD, 0.6, 0.7, EYE.DIAG_DEG, 0.35); place(gS, 0.85, 0.85, 0, 0.7);
+      return;
+    }
+
+    // ---- 배경 스모그: 연기 스프라이트를 색칠해 두고, 반해상도 캔버스에 그린 뒤 마스크로 배경부만 남김
+    var puffs = [], mask = new Image(), sprite = new Image(), ready = 0;
+    function onReady() { if (++ready === 2) buildTints(); }
+    mask.onload = onReady; sprite.onload = onReady;
+    mask.src = "img/smog_mask.png"; sprite.src = "img/smoke.webp";
+    function buildTints() {
+      var s = sprite.height;
+      for (var i = 0; i < 3; i++) {
+        var c = document.createElement("canvas"); c.width = c.height = s;
+        var g = c.getContext("2d");
+        g.drawImage(sprite, i * s, 0, s, s, 0, 0, s, s);
+        g.globalCompositeOperation = "source-in";
+        g.fillStyle = SMOG.COLOR; g.fillRect(0, 0, s, s);
+        puffs.push(c);
+      }
+    }
+    function rnd(a, b) { return a + Math.random() * (b - a); }
+    function spawn(p, initial) {
+      p.kind = (Math.random() * 3) | 0;
+      p.size = rnd(380, 720);
+      p.x = initial ? rnd(-200, 1500) : 1300 + p.size * 0.5;
+      p.y = rnd(40, 660);
+      p.vx = -SMOG.SPEED * rnd(0.6, 1.4); p.vy = rnd(-4, 2);
+      p.rot = rnd(0, 6.28); p.vr = rnd(-0.05, 0.05);
+      p.a = rnd(0.6, 1); p.ph = rnd(0, 6.28);
+      return p;
+    }
+    var smoke = [];
+    for (var i = 0; i < SMOG.COUNT; i++) smoke.push(spawn({}, true));
+
+    var start = null, last = null;
+    function frame(now) {
+      if (start === null) { start = last = now; }
+      var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      var t = ((now - start) / 1000) % EYE.CYCLE;
+
+      eye.style.opacity = level(t).toFixed(3);
+      if (EYE.BOOST) boost.style.opacity = (boostLevel(t) * EYE.BOOST).toFixed(3);
+      if (EYE.GLINT) {
+        var g = glint(t), ga = g.a * EYE.GLINT;
+        place(gH, g.sx, 1, 0, ga);
+        place(gD, g.sx * 0.6, 0.7, EYE.DIAG_DEG, ga * 0.5);
+        place(gS, Math.max(0.01, g.star), Math.max(0.01, g.star), (t - EYE.FLASH_AT) * 8, Math.min(1, ga * 1.2));
+      }
+
+      if (ctx && puffs.length) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = "source-over";
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        ctx.setTransform(0.5, 0, 0, 0.5, 0, 0); // 1300x680 좌표로 그림
+        for (var k = 0; k < smoke.length; k++) {
+          var p = smoke[k];
+          p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt; p.ph += dt * 0.4;
+          if (p.x < -p.size * 0.6) spawn(p, false);
+          ctx.globalAlpha = SMOG.ALPHA * p.a * (0.75 + 0.25 * Math.sin(p.ph));
+          ctx.save();
+          ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.drawImage(puffs[p.kind], -p.size / 2, -p.size / 2, p.size, p.size);
+          ctx.restore();
+        }
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.drawImage(mask, 0, 0, cv.width, cv.height);
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   })();
 </script>
 </body>
